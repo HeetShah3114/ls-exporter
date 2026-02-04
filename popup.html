@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Storage Manager</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>
+        <span class="icon">📦</span>
+        Local Storage Manager
+      </h1>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="view">View & Copy</button>
+      <button class="tab-btn" data-tab="import">Import JSON</button>
+    </div>
+
+    <div id="view-tab" class="tab-content active">
+      <div class="stats">
+        <div class="stat-item">
+          <span class="stat-value" id="item-count">0</span>
+          <span class="stat-label">Items</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="storage-size">0 KB</span>
+          <span class="stat-label">Size</span>
+        </div>
+      </div>
+
+      <div class="json-container">
+        <pre id="json-output" class="json-output"></pre>
+      </div>
+
+      <div class="actions">
+        <button id="refresh-btn" class="btn btn-secondary">
+          <span class="btn-icon">🔄</span> Refresh
+        </button>
+        <button id="copy-btn" class="btn btn-primary">
+          <span class="btn-icon">📋</span> Copy JSON
+        </button>
+      </div>
+    </div>
+
+    <div id="import-tab" class="tab-content">
+      <p class="info-text">Paste JSON below to update or add localStorage values. Existing keys will be updated, new keys will be added.</p>
+      
+      <textarea id="json-input" class="json-input" placeholder='{"key1": "value1", "key2": "value2"}'></textarea>
+
+      <div class="import-options">
+        <label class="checkbox-label">
+          <input type="checkbox" id="clear-before-import">
+          <span class="checkmark"></span>
+          Clear existing storage before import
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="clear-input-btn" class="btn btn-secondary">
+          <span class="btn-icon">🗑️</span> Clear
+        </button>
+        <button id="import-btn" class="btn btn-success">
+          <span class="btn-icon">⬇️</span> Import JSON
+        </button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

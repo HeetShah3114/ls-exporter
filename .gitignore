@@ -1,0 +1,9 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Chrome/IDE 
+.vscode/
+*.crx
+*.zip
+node_modules/
