@@ -21,7 +21,18 @@ A lightweight, modern Chrome Extension to manage, copy, and paste `localStorage`
 ## How to use
 1. Navigate to any website where you want to inspect storage.
 2. Click the **LS Exporter** icon in your browser toolbar.
-3. Use the **View & Copy** tab to export data or the **Import JSON** tab to manipulate storage.
+3. Use the tabs:
+    - **View & Copy**: Export data or check storage size.
+    - **Edit List**: Search, Edit, Add, or Delete individual items.
+    - **Import JSON**: Bulk update or replace storage.
+
+## How to Test
+1. Open Chrome and go to `chrome://extensions/`.
+2. Enable **Developer mode** (top right).
+3. Click **Load unpacked** and select this project folder.
+4. Open `test-page.html` in your browser.
+5. Click **Populate Test Data** on the page.
+6. Open the extension and try the **Edit List** tab to modify values.
 
 ## Permissions Notice
 This extension uses:

@@ -10,6 +10,21 @@ const clearInputBtn = document.getElementById('clear-input-btn');
 const clearBeforeImport = document.getElementById('clear-before-import');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const toast = document.getElementById('toast');
+// List View Elements
+const storageList = document.getElementById('storage-list');
+const searchKey = document.getElementById('search-key');
+const addItemBtn = document.getElementById('add-item-btn');
+
+// Modal Elements
+const editModal = document.getElementById('edit-modal');
+const modalTitle = document.getElementById('modal-title');
+const editKey = document.getElementById('edit-key');
+const editValue = document.getElementById('edit-value');
+const isJsonValue = document.getElementById('is-json-value');
+const closeModalObj = document.querySelector('.close-modal');
+const cancelEditBtn = document.getElementById('cancel-edit');
+const saveEditBtn = document.getElementById('save-edit');
+const deleteBtn = document.getElementById('delete-btn');
 
 // Tab switching
 tabBtns.forEach(btn => {
@@ -136,15 +151,38 @@ async function setLocalStorage(data, clearFirst = false) {
     }
 }
 
+// Delete localStorage item on current tab
+async function deleteLocalStorage(key) {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (keyToDelete) => {
+                localStorage.removeItem(keyToDelete);
+                return true;
+            },
+            args: [key]
+        });
+
+        return true;
+    } catch (error) {
+        console.error('Error deleting localStorage item:', error);
+        throw error;
+    }
+}
+
 // Refresh and display localStorage
 async function refreshStorage() {
     try {
         const data = await getLocalStorage();
         const keys = Object.keys(data);
 
+        // Update stats
         itemCount.textContent = keys.length;
         storageSize.textContent = calculateSize(data);
 
+        // Update JSON View
         if (keys.length === 0) {
             jsonOutput.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No localStorage data found on this page</p></div>';
         } else {
@@ -154,79 +192,185 @@ async function refreshStorage() {
         // Store current data for copying
         jsonOutput.dataset.rawJson = JSON.stringify(data, null, 2);
 
+        // Update List View
+        renderStorageList(data);
+
     } catch (error) {
         jsonOutput.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>Cannot access localStorage on this page.<br>Try on a regular website.</p></div>';
+        storageList.innerHTML = '<div class="empty-state"><p>Cannot access localStorage</p></div>';
         itemCount.textContent = '-';
         storageSize.textContent = '-';
     }
 }
 
-// Copy JSON to clipboard
-copyBtn.addEventListener('click', async () => {
-    const rawJson = jsonOutput.dataset.rawJson;
+// Render Storage List
+function renderStorageList(data) {
+    storageList.innerHTML = '';
+    const searchTerm = searchKey.value.toLowerCase();
+    const entries = Object.entries(data);
 
-    if (!rawJson || rawJson === '{}') {
-        showToast('No data to copy', 'error');
+    if (entries.length === 0) {
+        storageList.innerHTML = '<div class="empty-state"><p>No items found</p></div>';
         return;
+    }
+
+    let found = false;
+
+    entries.sort((a, b) => a[0].localeCompare(b[0])).forEach(([key, value]) => {
+        if (searchTerm && !key.toLowerCase().includes(searchTerm)) {
+            return;
+        }
+
+        found = true;
+        const item = document.createElement('div');
+        item.className = 'storage-item';
+
+        const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+        item.innerHTML = `
+            <div class="item-content">
+                <div class="item-key" title="${key}">${key}</div>
+                <div class="item-value" title="${displayValue.replace(/"/g, '&quot;')}">${displayValue}</div>
+            </div>
+            <div class="item-actions">
+                <button class="btn-icon-only edit-item-btn" title="Edit">✏️</button>
+            </div>
+        `;
+
+        // Add event listener for edit button
+        item.querySelector('.edit-item-btn').addEventListener('click', () => {
+            openModal(key, value);
+        });
+
+        storageList.appendChild(item);
+    });
+
+    if (!found) {
+        storageList.innerHTML = '<div class="empty-state"><p>No matching keys found</p></div>';
+    }
+}
+
+// Modal Logic
+let currentEditKey = null;
+
+function openModal(key = null, value = '') {
+    currentEditKey = key;
+
+    if (key) {
+        // Edit mode
+        modalTitle.textContent = 'Edit Item';
+        editKey.value = key;
+        editKey.disabled = true; // Cannot change key when editing
+        deleteBtn.style.display = 'block';
+
+        if (typeof value === 'object') {
+            editValue.value = JSON.stringify(value, null, 2);
+            isJsonValue.checked = true;
+        } else {
+            editValue.value = value;
+            isJsonValue.checked = false;
+        }
+    } else {
+        // Add mode
+        modalTitle.textContent = 'Add New Item';
+        editKey.value = '';
+        editKey.disabled = false;
+        editValue.value = '';
+        isJsonValue.checked = false;
+        deleteBtn.style.display = 'none';
+    }
+
+    editModal.classList.add('show');
+    if (!key) setTimeout(() => editKey.focus(), 100);
+    else setTimeout(() => editValue.focus(), 100);
+}
+
+function closeModal() {
+    editModal.classList.remove('show');
+    currentEditKey = null;
+}
+
+// Save Edit/Add
+saveEditBtn.addEventListener('click', async () => {
+    const key = editKey.value.trim();
+    let value = editValue.value;
+    const isJson = isJsonValue.checked;
+
+    if (!key) {
+        showToast('Key is required', 'error');
+        return;
+    }
+
+    if (isJson) {
+        try {
+            value = JSON.parse(value);
+        } catch (e) {
+            showToast('Invalid JSON format', 'error');
+            return;
+        }
     }
 
     try {
-        await navigator.clipboard.writeText(rawJson);
-        showToast('✓ Copied to clipboard!', 'success');
+        const data = { [key]: value };
+        // If we are editing, we just set the new value. The key is locked so we don't need to delete old one (unless we allowed key editing).
+        // If adding, we just set the key.
+
+        await setLocalStorage(data, false);
+        showToast('✓ Saved!', 'success');
+        closeModal();
+        refreshStorage();
     } catch (error) {
-        showToast('Failed to copy', 'error');
+        showToast('Failed to save', 'error');
     }
 });
 
-// Refresh button
-refreshBtn.addEventListener('click', () => {
-    refreshStorage();
-    showToast('✓ Refreshed!', 'success');
-});
+// Delete Item
+deleteBtn.addEventListener('click', async () => {
+    if (!currentEditKey) return;
 
-// Clear input button
-clearInputBtn.addEventListener('click', () => {
-    jsonInput.value = '';
-    jsonInput.focus();
-});
-
-// Import JSON
-importBtn.addEventListener('click', async () => {
-    const inputValue = jsonInput.value.trim();
-
-    if (!inputValue) {
-        showToast('Please enter JSON data', 'error');
-        return;
-    }
-
-    let data;
-    try {
-        data = JSON.parse(inputValue);
-    } catch (error) {
-        showToast('Invalid JSON format', 'error');
-        return;
-    }
-
-    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-        showToast('JSON must be an object', 'error');
-        return;
-    }
-
-    try {
-        await setLocalStorage(data, clearBeforeImport.checked);
-        showToast('✓ Storage updated!', 'success');
-
-        // Switch to view tab and refresh
-        tabBtns[0].click();
-        await refreshStorage();
-
-        // Clear input
-        jsonInput.value = '';
-
-    } catch (error) {
-        showToast('Failed to update storage', 'error');
+    if (confirm(`Are you sure you want to delete "${currentEditKey}"?`)) {
+        try {
+            await deleteLocalStorage(currentEditKey);
+            showToast('✓ Deleted!', 'success');
+            closeModal();
+            refreshStorage();
+        } catch (error) {
+            showToast('Failed to delete', 'error');
+        }
     }
 });
 
-// Initialize
+// Modal Event Listeners
+closeModalObj.addEventListener('click', closeModal);
+cancelEditBtn.addEventListener('click', closeModal);
+editModal.addEventListener('click', (e) => {
+    if (e.target === editModal) closeModal();
+});
+
+
+
+// Optimize search to not hit chrome API on every keystroke if possible, 
+// BUT refreshStorage() updates everything. 
+// A better approach: store `currentData` globally in the file.
+let currentData = {};
+const originalGetLocalStorage = getLocalStorage;
+// Override/wrap to cache data
+getLocalStorage = async function () {
+    currentData = await originalGetLocalStorage();
+    return currentData;
+}
+
+// Now update search listener to use cached data
+// Search functionality
+searchKey.addEventListener('input', () => {
+    renderStorageList(currentData);
+});
+
+
+// Add Item Button
+addItemBtn.addEventListener('click', () => {
+    openModal();
+});
+
+// Initial load
 refreshStorage();
